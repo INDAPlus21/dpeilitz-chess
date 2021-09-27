@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, process::Output};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum GameState {
@@ -98,10 +98,14 @@ impl Game {
     /// move a piece and return the resulting state of the game.
     pub fn make_move(&mut self, _from: String, _to: String) -> Option<GameState> {
         //check if inProgress
-        if self.get_game_state() == GameState::InProgress {}
-        let piece = self.what_is_on(&_from);
-        if self.is_legal(piece, _from, _to) == true {};
-        //Find what piece is on tile DONE
+        if self.get_game_state() == GameState::InProgress {
+            if self.get_possible_moves(&_from).unwrap().contains(&_to) {
+                let _from = self.get_index(&_from);
+                let _to = self.get_index(&_to);
+                self.board[_from.0][_from.1] = self.board[_to.0][_to.1];
+            }
+        }
+        //Find what piece is on a position DONE
         //find if move is legal DOING
         //move piece
         //check if Gamestate has changed
@@ -119,48 +123,18 @@ impl Game {
         let row: char = _tile[..1].parse().ok().unwrap();
         let column: usize = _tile[1..].parse().ok().unwrap();
         let row: usize = match row {
-            'A' => 0,
-            'B' => 1,
-            'C' => 2,
-            'D' => 3,
-            'E' => 4,
-            'F' => 5,
-            'G' => 6,
-            'H' => 7,
-            //if it is outside of the scope it's always mapped to 0
+            'a' => 0,
+            'b' => 1,
+            'c' => 2,
+            'd' => 3,
+            'e' => 4,
+            'f' => 5,
+            'g' => 6,
+            'h' => 7,
+            //if it is outside of the scope it's always mapped to 0 CHANGE ASAP
             _ => 0,
         };
         (row, column)
-    }
-
-    pub fn is_legal(&self, _piece: Option<(Piece, Colour)>, _from: String, _to: String) -> bool {
-        use Piece::*;
-        match _piece.unwrap().0 {
-            King => self.king_moves(_from, _to),
-            Queen => self.queen_moves(_from, _to),
-            Knight => self.knight_moves(_from, _to),
-            Rook => self.rook_moves(_from, _to),
-            Bishop => self.bishop_moves(_from, _to),
-            Peasant => self.peasant_moves(_from, _to),
-        }
-    }
-    pub fn king_moves(&self, _from: String, _to: String) -> bool {
-        false
-    }
-    pub fn queen_moves(&self, _from: String, _to: String) -> bool {
-        false
-    }
-    pub fn knight_moves(&self, _from: String, _to: String) -> bool {
-        false
-    }
-    pub fn rook_moves(&self, _from: String, _to: String) -> bool {
-        false
-    }
-    pub fn bishop_moves(&self, _from: String, _to: String) -> bool {
-        false
-    }
-    pub fn peasant_moves(&self, _from: String, _to: String) -> bool {
-        false
     }
 
     /// Set the piece type that a peasant becames following a promotion.
@@ -180,14 +154,75 @@ impl Game {
     /// new positions of that piece. Don't forget to the rules for check.
     ///
     /// (optional) Don't forget to include en passent and castling.
-    pub fn get_possible_moves(&self, _postion: String) -> Option<Vec<String>> {
+    pub fn get_possible_moves(&self, _position: &String) -> Option<Vec<String>> {
         //find out what piece is on the given tile
         //match case for possible legal moves
+        let piece = self.what_is_on(&_position);
+        use Piece::*;
+        match piece.unwrap().0 {
+            King => self.king_moves(_position),
+            Queen => self.queen_moves(_position),
+            Knight => self.knight_moves(_position),
+            Rook => self.rook_moves(_position),
+            Bishop => self.bishop_moves(_position),
+            Peasant => self.peasant_moves(_position),
+        }
+    }
+    /// Get the positions that the king can move to from its current position
+    pub fn king_moves(&self, _position: &String) -> Option<Vec<String>> {
+        //Get every position surrounding the piece
+        let index = self.get_index(_position);
+        let output: Vec<String>;
+        for r in -1..=1 {
+            for c in -1..=1 {
+                output.push_str(format!())
+            }
+        }
+        //Get if positions are illegal ie, piece there, unavailable space
+        //convert to Vec with String
+        None
+    }
+    pub fn index_to_string(&self, _input: (u32, u32)) -> String {
+        let output = String::with_capacity(2);
+        output.push(match _input.0 {
+            0 => 'a',
+            1 => 'b',
+            2 => 'c',
+            3 => 'd',
+            4 => 'e',
+            5 => 'f',
+            6 => 'g',
+            7 => 'h',
+            _ => ' ',
+        });
+        output.push(char::from_digit(_input.1, 10).unwrap());
+        output
+    }
+
+    /// Get the positions that the queen can move to from its current position
+    pub fn queen_moves(&self, _from: &String) -> Option<Vec<String>> {
+        None
+    }
+    /// Get the positions that a knight can move to from its current position
+    pub fn knight_moves(&self, _from: &String) -> Option<Vec<String>> {
+        None
+    }
+    /// Get the positions that a rook can move to from its current position
+    pub fn rook_moves(&self, _from: &String) -> Option<Vec<String>> {
+        None
+    }
+    /// Get the positions that a bishop can move to from its current position
+    pub fn bishop_moves(&self, _from: &String) -> Option<Vec<String>> {
+        None
+    }
+    /// Get the positions that a peasant can move to from its current position
+    pub fn peasant_moves(&self, _from: &String) -> Option<Vec<String>> {
         None
     }
 
     //
 }
+
 /// Implement print routine for Game.
 ///
 /// Output example:
