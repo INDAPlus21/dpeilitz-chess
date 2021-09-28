@@ -103,7 +103,8 @@ impl Game {
                 let _from = self.get_index(&_from);
                 let _to = self.get_index(&_to);
                 //> this is ugly
-                self.board[_from.0 as usize][_from.1 as usize] = self.board[_to.0 as usize][_to.1 as usize];
+                self.board[_from.0 as usize][_from.1 as usize] =
+                    self.board[_to.0 as usize][_to.1 as usize];
             }
         }
         //Find what piece is on a position DONE
@@ -163,20 +164,23 @@ impl Game {
         match piece.unwrap().0 {
             King => self.king_moves(_position),
             Queen => self.queen_moves(_position),
+            Bishop => self.bishop_moves(_position),
             Knight => self.knight_moves(_position),
             Rook => self.rook_moves(_position),
-            Bishop => self.bishop_moves(_position),
             Peasant => self.peasant_moves(_position),
         }
     }
     ///return a position relative to a given one
-    pub fn relative_pos(&self, _pos: &String, _row: i8, _column: i8) -> Option<String>{
+    pub fn relative_pos(&self, _pos: &String, _row: i8, _column: i8) -> Option<String> {
         let _pos = self.get_index(&_pos);
-        let output: (usize, usize) = ((_pos.0 as i8 +_row) as usize, (_pos.1 as i8 +_column)as usize);
+        let output: (usize, usize) = (
+            (_pos.0 as i8 + _row) as usize,
+            (_pos.1 as i8 + _column) as usize,
+        );
         Some(self.index_to_string(output))
     }
     pub fn index_to_string(&self, _input: (usize, usize)) -> String {
-        let mut output: String  = String::with_capacity(2);
+        let mut output: String = String::with_capacity(2);
         output.push(match _input.0 {
             0 => 'a',
             1 => 'b',
@@ -200,10 +204,8 @@ impl Game {
         let mut output: Vec<String> = Vec::with_capacity(8);
         for r in -1..=1 {
             for c in -1..=1 {
-
                 let possible_pos = self.relative_pos(_pos, r, c).unwrap();
-                if _pos != &possible_pos{
-
+                if _pos != &possible_pos {
                     output.push(possible_pos);
                 }
             }
@@ -214,11 +216,28 @@ impl Game {
     }
 
     /// Get the positions that the queen can move to from its current position
-    pub fn queen_moves(&self, _from: &String) -> Option<Vec<String>> {
-        None
+    pub fn queen_moves(&self, _pos: &String) -> Option<Vec<String>> {
+        let mut output: Vec<String> = Vec::new();
+        output.append(&mut self.bishop_moves(_pos).unwrap());
+        output.append(&mut self.rook_moves(_pos).unwrap());
+        Some(output)
     }
     /// Get the positions that a knight can move to from its current position
-    pub fn knight_moves(&self, _from: &String) -> Option<Vec<String>> {
+    pub fn knight_moves(&self, _pos: &String) -> Option<Vec<String>> {
+        let mut output: Vec<String> = Vec::new();
+        //all possible moves relative to position
+        let _pot_row: [i8; 8] = [1, 1, -1, -1, 2, 2, -2, -2];
+        let _pot_col: [i8; 8] = [2, -2, 2, -2, 1, -1, 1, -1];
+        for n in 0..8 {
+            //find position after move
+            let pot_pos = self.relative_pos(_pos, _pot_row[n], _pot_col[n]).unwrap();
+            //save position if tile is empty or
+            if self.what_is_on(&pot_pos) == None
+                || self.what_is_on(&pot_pos).unwrap().1 != self.what_is_on(&_pos).unwrap().1
+            {
+                output.push(pot_pos);
+            }
+        }
         None
     }
     /// Loop through every unoccupied position in cross from the rooks position
@@ -226,106 +245,155 @@ impl Game {
     /// FIX ASAP
     pub fn rook_moves(&self, _pos: &String) -> Option<Vec<String>> {
         let index = self.get_index(_pos);
-        let output: Vec<String> = Vec::new();
+        let mut output: Vec<String> = Vec::new();
+
         //right
-        for n in 1..(8-index.0){
-            let up = self.what_is_on(&self.relative_pos(_pos, n, 0).unwrap());
-            if &up == None{
-                output.push(up);
-            }
-            else{
-                output.push(up);
+        for n in 1..(8 - index.0) {
+            let new_pos = self.relative_pos(_pos, 0, n as i8).unwrap();
+            if self.what_is_on(&new_pos) == None {
+                output.push(new_pos);
+            } else {
+                output.push(new_pos);
                 break;
             }
         }
+
         //down
-        for n in 0..(8-index.1){
-            let down = self.what_is_on(self.relative_pos(_pos, n, 0));
-            if &up == None{
-                output.push(up);
-            }
-            else{
-                output.push(up);
+        for n in 1..(8 - index.1) {
+            let new_pos = self.relative_pos(_pos, n as i8, 0).unwrap();
+            if self.what_is_on(&new_pos) == None {
+                output.push(new_pos);
+            } else {
+                output.push(new_pos);
                 break;
             }
         }
         //left
-        for n in (1..index.1){
-            let left = self.what_is_on(self.relative_pos(_pos, n, 0));
-            if &up == None{
-                output.push(up);
-            }
-            else{
-                output.push(up);
+        for n in 1..index.1 {
+            let new_pos = self.relative_pos(_pos, 0, -(n as i8)).unwrap();
+            if self.what_is_on(&new_pos) == None {
+                output.push(new_pos);
+            } else {
+                output.push(new_pos);
                 break;
             }
         }
-        //right
-        for n in (1..index.1){
-            let up = self.what_is_on(self.relative_pos(_pos, n, 0));
-            if &up == None{
-                output.push(up);
-            }
-            else{
-                output.push(up);
+        //up
+        for n in 1..index.1 {
+            let new_pos = self.relative_pos(_pos, -(n as i8), 0).unwrap();
+            if self.what_is_on(&new_pos) == None {
+                output.push(new_pos);
+            } else {
+                output.push(new_pos);
                 break;
             }
         }
         Some(output)
     }
     /// Get the positions that a bishop can move to from its current position
-    pub fn bishop_moves(&self, _from: &String) -> Option<Vec<String>> {
+    pub fn bishop_moves(&self, _pos: &String) -> Option<Vec<String>> {
         let index = self.get_index(_pos);
-        let output: Vec<String> = Vec::new();
+        let mut output: Vec<String> = Vec::new();
+        //
         //Up right
-        for n in 1..(8-index.0){
-            let up = self.what_is_on(&self.relative_pos(n, -n, 0).unwrap());
-            if &up == None{
-                output.push(up);
-            }
-            else{
-                output.push(up);
+        for n in 1..(8 - index.0) {
+            let new_pos = self.relative_pos(_pos, -(n as i8), n as i8).unwrap();
+            if self.what_is_on(&new_pos) == None {
+                output.push(new_pos);
+            } else {
+                output.push(new_pos);
                 break;
             }
         }
+
         //down right
-        for n in 0..(8-index.1){
-            let down = self.what_is_on(&self.relative_pos(n, n, 0).unwrap());
-            if &down == None{
-                output.push(down);
-            }
-            else{
-                output.push(down);
+        for n in 1..(8 - index.1) {
+            let new_pos = self.relative_pos(_pos, n as i8, n as i8).unwrap();
+            if self.what_is_on(&new_pos) == None {
+                output.push(new_pos);
+            } else {
+                output.push(new_pos);
                 break;
             }
         }
         //down left
-        for n in (1..index.1){
-            let left = self.what_is_on(&self.relative_pos(-n, n, 0).unwrap());
-            if &left == None{
-                output.push(left);
-            }
-            else{
-                output.push(left);
+        for n in 1..index.1 {
+            let new_pos = self.relative_pos(_pos, n as i8, -(n as i8)).unwrap();
+            if self.what_is_on(&new_pos) == None {
+                output.push(new_pos);
+            } else {
+                output.push(new_pos);
                 break;
             }
         }
         //up left
-        for n in (1..index.1){
-            let upleft = self.what_is_on(&self.relative_pos(-n, -n, 0).unwrap());
-            if &upleft == None{
-                output.push(upleft);
-            }
-            else{
-                output.push(upleft);
+        for n in 1..index.1 {
+            let new_pos = self.relative_pos(_pos, -(n as i8), -(n as i8)).unwrap();
+            if self.what_is_on(&new_pos) == None {
+                output.push(new_pos);
+            } else {
+                output.push(new_pos);
                 break;
-            };
+            }
         }
         None
     }
     /// Get the positions that a peasant can move to from its current position
-    pub fn peasant_moves(&self, _from: &String) -> Option<Vec<String>> {
-        None
+    /// If the peasant is in a starting position, include 2 square moves
+    pub fn peasant_moves(&self, _pos: &String) -> Option<Vec<String>> {
+        let mut output: Vec<String> = Vec::new();
+        match self.what_is_on(_pos).unwrap().1 {
+            Colour::White => {
+                //basic movement
+                let new_pos = self.relative_pos(_pos, -1, 0).unwrap();
+                if self.what_is_on(&new_pos) == None {
+                    output.push(new_pos);
+                }
+
+                //if the peasant is diagonally opposed to a piece, allow attack
+                let att_pos1 = self.relative_pos(_pos, -1, -1).unwrap();
+                if self.what_is_on(&att_pos1).unwrap().1 == Colour::Black {
+                    output.push(att_pos1);
+                }
+
+                let att_pos2 = self.relative_pos(_pos, -1, 1).unwrap();
+                if self.what_is_on(&att_pos2).unwrap().1 == Colour::Black {
+                    output.push(att_pos2);
+                }
+                //double movement if on starting square
+                let pot_pos = self.relative_pos(_pos, -2, 0).unwrap();
+                if self.get_index(_pos).0 == 7 && self.what_is_on(&pot_pos) == None {
+                    output.push(pot_pos);
+                }
+            }
+
+            Colour::Black => {
+                let new_pos = self.relative_pos(_pos, 1, 0).unwrap();
+                //basic movement
+                if self.what_is_on(&new_pos) == None {
+                    output.push(new_pos);
+                }
+
+                //if the peasant is diagonally opposed to a piece, allow attack
+                let att_pos1 = self.relative_pos(_pos, 1, -1).unwrap();
+                if self.what_is_on(&att_pos1).unwrap().1 == Colour::Black {
+                    output.push(att_pos1);
+                }
+                //other attack position
+                let att_pos2 = self.relative_pos(_pos, 1, 1).unwrap();
+                if self.what_is_on(&att_pos2).unwrap().1 == Colour::Black {
+                    output.push(att_pos2);
+                }
+
+                //double movement if on starting square
+                let pot_pos = self.relative_pos(_pos, 2, 0).unwrap();
+                if self.get_index(_pos).0 == 7 && self.what_is_on(&pot_pos) == None {
+                    output.push(pot_pos);
+                }
+            }
+        };
+
+        Some(output)
     }
 
     //
