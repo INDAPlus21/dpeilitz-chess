@@ -102,7 +102,8 @@ impl Game {
             if self.get_possible_moves(&_from).unwrap().contains(&_to) {
                 let _from = self.get_index(&_from);
                 let _to = self.get_index(&_to);
-                self.board[_from.0][_from.1] = self.board[_to.0][_to.1];
+                //> this is ugly
+                self.board[_from.0 as usize][_from.1 as usize] = self.board[_to.0 as usize][_to.1 as usize];
             }
         }
         //Find what piece is on a position DONE
@@ -116,7 +117,7 @@ impl Game {
     pub fn what_is_on(&self, _tile: &String) -> Option<(Piece, Colour)> {
         //Get index for position and return whatever is on that index
         let tile = self.get_index(_tile);
-        self.board[tile.0][tile.1]
+        self.board[tile.0 as usize][tile.1 as usize]
     }
     pub fn get_index(&self, _tile: &String) -> (usize, usize) {
         //split string and turn into seperate variables
@@ -168,22 +169,14 @@ impl Game {
             Peasant => self.peasant_moves(_position),
         }
     }
-    /// Get the positions that the king can move to from its current position
-    pub fn king_moves(&self, _position: &String) -> Option<Vec<String>> {
-        //Get every position surrounding the piece
-        let index = self.get_index(_position);
-        let output: Vec<String>;
-        for r in -1..=1 {
-            for c in -1..=1 {
-                output.push_str(format!())
-            }
-        }
-        //Get if positions are illegal ie, piece there, unavailable space
-        //convert to Vec with String
-        None
+    ///return a position relative to a given one
+    pub fn relative_pos(&self, _pos: &String, _row: i8, _column: i8) -> Option<String>{
+        let _pos = self.get_index(&_pos);
+        let output: (usize, usize) = ((_pos.0 as i8 +_row) as usize, (_pos.1 as i8 +_column)as usize);
+        Some(self.index_to_string(output))
     }
-    pub fn index_to_string(&self, _input: (u32, u32)) -> String {
-        let output = String::with_capacity(2);
+    pub fn index_to_string(&self, _input: (usize, usize)) -> String {
+        let mut output: String  = String::with_capacity(2);
         output.push(match _input.0 {
             0 => 'a',
             1 => 'b',
@@ -195,8 +188,29 @@ impl Game {
             7 => 'h',
             _ => ' ',
         });
-        output.push(char::from_digit(_input.1, 10).unwrap());
+        //ERROR IF USIZE IS OUTSIDE OF SCOPE
+        output.push(char::from_digit(_input.1 as u32, 10).unwrap());
         output
+    }
+    /// Get the positions that the king can move to from its current position
+    pub fn king_moves(&self, _pos: &String) -> Option<Vec<String>> {
+        //Get every position surrounding the piece
+        let index = self.get_index(_pos);
+        //WITH CAPACITY?
+        let mut output: Vec<String> = Vec::with_capacity(8);
+        for r in -1..=1 {
+            for c in -1..=1 {
+
+                let possible_pos = self.relative_pos(_pos, r, c).unwrap();
+                if _pos != &possible_pos{
+
+                    output.push(possible_pos);
+                }
+            }
+        }
+        //Get if positions are illegal ie, piece there, unavailable space
+        //convert to Vec with String
+        Some(output)
     }
 
     /// Get the positions that the queen can move to from its current position
@@ -207,12 +221,106 @@ impl Game {
     pub fn knight_moves(&self, _from: &String) -> Option<Vec<String>> {
         None
     }
-    /// Get the positions that a rook can move to from its current position
-    pub fn rook_moves(&self, _from: &String) -> Option<Vec<String>> {
-        None
+    /// Loop through every unoccupied position in cross from the rooks position
+    /// Return every position therein
+    /// FIX ASAP
+    pub fn rook_moves(&self, _pos: &String) -> Option<Vec<String>> {
+        let index = self.get_index(_pos);
+        let output: Vec<String> = Vec::new();
+        //right
+        for n in 1..(8-index.0){
+            let up = self.what_is_on(&self.relative_pos(_pos, n, 0).unwrap());
+            if &up == None{
+                output.push(up);
+            }
+            else{
+                output.push(up);
+                break;
+            }
+        }
+        //down
+        for n in 0..(8-index.1){
+            let down = self.what_is_on(self.relative_pos(_pos, n, 0));
+            if &up == None{
+                output.push(up);
+            }
+            else{
+                output.push(up);
+                break;
+            }
+        }
+        //left
+        for n in (1..index.1){
+            let left = self.what_is_on(self.relative_pos(_pos, n, 0));
+            if &up == None{
+                output.push(up);
+            }
+            else{
+                output.push(up);
+                break;
+            }
+        }
+        //right
+        for n in (1..index.1){
+            let up = self.what_is_on(self.relative_pos(_pos, n, 0));
+            if &up == None{
+                output.push(up);
+            }
+            else{
+                output.push(up);
+                break;
+            }
+        }
+        Some(output)
     }
     /// Get the positions that a bishop can move to from its current position
     pub fn bishop_moves(&self, _from: &String) -> Option<Vec<String>> {
+        let index = self.get_index(_pos);
+        let output: Vec<String> = Vec::new();
+        //Up right
+        for n in 1..(8-index.0){
+            let up = self.what_is_on(&self.relative_pos(n, -n, 0).unwrap());
+            if &up == None{
+                output.push(up);
+            }
+            else{
+                output.push(up);
+                break;
+            }
+        }
+        //down right
+        for n in 0..(8-index.1){
+            let down = self.what_is_on(&self.relative_pos(n, n, 0).unwrap());
+            if &down == None{
+                output.push(down);
+            }
+            else{
+                output.push(down);
+                break;
+            }
+        }
+        //down left
+        for n in (1..index.1){
+            let left = self.what_is_on(&self.relative_pos(-n, n, 0).unwrap());
+            if &left == None{
+                output.push(left);
+            }
+            else{
+                output.push(left);
+                break;
+            }
+        }
+        //up left
+        for n in (1..index.1){
+            let upleft = self.what_is_on(&self.relative_pos(-n, -n, 0).unwrap());
+            if &upleft == None{
+                output.push(upleft);
+            }
+            else{
+                output.push(upleft);
+                break;
+            };
+        }
         None
     }
     /// Get the positions that a peasant can move to from its current position
