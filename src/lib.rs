@@ -238,7 +238,7 @@ impl Game {
                 output.push(pot_pos);
             }
         }
-        None
+        Some(output)
     }
     /// Loop through every unoccupied position in cross from the rooks position
     /// Return every position therein
