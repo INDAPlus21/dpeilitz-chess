@@ -1,4 +1,4 @@
-use std::{fmt, process::Output};
+use std::{collections::HashSet, fmt, process::Output};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum GameState {
@@ -32,6 +32,7 @@ pub struct Game {
     /* save board, active colour, ... */
     board: [[Option<(Piece, Colour)>; 8]; 8],
     active_colour: Colour,
+    promotion: Piece,
     state: GameState,
 }
 
@@ -90,6 +91,7 @@ impl Game {
                 ],
             ],
             active_colour: White,
+            promotion: Queen,
             state: GameState::InProgress,
         }
     }
@@ -98,6 +100,7 @@ impl Game {
     /// move a piece and return the resulting state of the game.
     pub fn make_move(&mut self, _from: String, _to: String) -> Option<GameState> {
         //check if inProgress
+        let colour = self.what_is_on(&_from).unwrap().1;
         if self.get_game_state() == GameState::InProgress {
             if self.get_possible_moves(&_from).unwrap().contains(&_to) {
                 let _from = self.get_index(&_from);
@@ -107,20 +110,74 @@ impl Game {
                     self.board[_to.0 as usize][_to.1 as usize];
             }
         }
-        //Find what piece is on a position DONE
-        //find if move is legal DOING
-        //move piece
+        let king_pos = self.find_king(colour);
+        self.king_in_danger(king_pos, colour);
         //check if Gamestate has changed
         //return GameState
         None
     }
+    ///Find king of a certain colour by looping through the board
+    fn find_king(&self, colour: Colour) -> String{
+        let mut king_pos: String = String::new();
+        use Piece::*;
+        //find the king
+        for row in 1..=8 {
+            for column in 1..=8 {
+                if self.board[row][column].unwrap() == (King, colour) {
+                    king_pos = self.index_to_string((row, column));
+                }
+            }
+        }
+        king_pos
+    }
 
-    pub fn what_is_on(&self, _tile: &String) -> Option<(Piece, Colour)> {
+    ///Loop through every value that could threaten the square that the king is on
+    ///if king is checked, return that DONE
+    ///if king is check mated, return that
+    ///if not, return in progress
+    fn king_in_danger(&self, _pos: String, colour:Colour) -> Option<GameState> {
+        use GameState::*;
+        let mut output: Option<GameState>= Some(InProgress);
+        let king_moves: Vec<String> =self.king_moves(&_pos).unwrap();
+        let mut hs: HashSet<String> = HashSet::new();
+        for row in 1..=8{
+            for column in 1..=8{
+                //if other colour choose piece
+                let piece = self.what_is_on(&self.index_to_string((row,column))).unwrap();
+                let piece_pos = self.index_to_string((row,column));
+                let mut pos_moves: Vec<String> = self.get_possible_moves(&piece_pos).unwrap();
+                //add all dangerous or occupied position into a hashset
+                if piece.1 != colour {
+
+                
+                    if pos_moves.contains(&_pos){
+                        output = Some(Check);
+                        //push piece position into possible move and insert into hashset
+                        //THIS IS GONNA CAUSE PROBLEMS MAYBE
+                        hs.insert(pos_moves.into_iter().collect());
+                        hs.insert(piece_pos);
+                    }
+                }
+                //if the piece is of the same colour include only the square it occupies
+                else {
+                    hs.insert(piece_pos);
+                }
+            }
+        }
+        //compare hashset to the moves the king can make and its current positions. If it includes all these positions
+        if  king_moves.iter().all(|king_move| hs.contains(king_move)) && hs.contains(&_pos){
+            output = Some(GameOver);
+        }
+
+        output
+    }
+
+    fn what_is_on(&self, _tile: &String) -> Option<(Piece, Colour)> {
         //Get index for position and return whatever is on that index
         let tile = self.get_index(_tile);
         self.board[tile.0 as usize][tile.1 as usize]
     }
-    pub fn get_index(&self, _tile: &String) -> (usize, usize) {
+    fn get_index(&self, _tile: &String) -> (usize, usize) {
         //split string and turn into seperate variables
         let row: char = _tile[..1].parse().ok().unwrap();
         let column: usize = _tile[1..].parse().ok().unwrap();
@@ -140,11 +197,24 @@ impl Game {
     }
 
     /// Set the piece type that a peasant becames following a promotion.
+    /// 
+    /// Returns a Some(Piece, Colour)
     pub fn set_promotion(&mut self, _piece: String) -> () {
-        //find the piece that is to be upgraded by looping through the top row
-        //Allow the user to input a piece
-        //Create match statement for all pieces
+        use Piece::*;
+        match _piece.as_ref(){
+            "queen" => self.promotion = Queen,
+            "bishop" => self.promotion = Bishop,
+            "knight" => self.promotion = Knight,
+            "rook" => self.promotion = Rook,
+            _ => self.promotion = self.promotion
+
+        };
         ()
+    }
+    fn promote(&mut self, _pos: String, colour: Colour){
+        let index = self.get_index(&_pos);
+        self.board[index.0][index.1] = Some((self.promotion, colour));
+        
     }
 
     /// Get the current game state.
@@ -171,7 +241,7 @@ impl Game {
         }
     }
     ///return a position relative to a given one
-    pub fn relative_pos(&self, _pos: &String, _row: i8, _column: i8) -> Option<String> {
+     fn relative_pos(&self, _pos: &String, _row: i8, _column: i8) -> Option<String> {
         let _pos = self.get_index(&_pos);
         let output: (usize, usize) = (
             (_pos.0 as i8 + _row) as usize,
@@ -179,7 +249,8 @@ impl Game {
         );
         Some(self.index_to_string(output))
     }
-    pub fn index_to_string(&self, _input: (usize, usize)) -> String {
+
+    fn index_to_string(&self, _input: (usize, usize)) -> String {
         let mut output: String = String::with_capacity(2);
         output.push(match _input.0 {
             0 => 'a',
@@ -197,7 +268,7 @@ impl Game {
         output
     }
     /// Get the positions that the king can move to from its current position
-    pub fn king_moves(&self, _pos: &String) -> Option<Vec<String>> {
+    fn king_moves(&self, _pos: &String) -> Option<Vec<String>> {
         //Get every position surrounding the piece
         let index = self.get_index(_pos);
         //WITH CAPACITY?
@@ -216,14 +287,63 @@ impl Game {
     }
 
     /// Get the positions that the queen can move to from its current position
-    pub fn queen_moves(&self, _pos: &String) -> Option<Vec<String>> {
+    fn queen_moves(&self, _pos: &String) -> Option<Vec<String>> {
         let mut output: Vec<String> = Vec::new();
         output.append(&mut self.bishop_moves(_pos).unwrap());
         output.append(&mut self.rook_moves(_pos).unwrap());
         Some(output)
     }
+    /// Get the positions that a bishop can move to from its current position
+    fn bishop_moves(&self, _pos: &String) -> Option<Vec<String>> {
+        let index = self.get_index(_pos);
+        let mut output: Vec<String> = Vec::new();
+        //
+        //Up right
+        for n in 1..(8 - index.0) {
+            let new_pos = self.relative_pos(_pos, -(n as i8), n as i8).unwrap();
+            if self.what_is_on(&new_pos) == None {
+                output.push(new_pos);
+            } else {
+                output.push(new_pos);
+                break;
+            }
+        }
+
+        //down right
+        for n in 1..(8 - index.1) {
+            let new_pos = self.relative_pos(_pos, n as i8, n as i8).unwrap();
+            if self.what_is_on(&new_pos) == None {
+                output.push(new_pos);
+            } else {
+                output.push(new_pos);
+                break;
+            }
+        }
+        //down left
+        for n in 1..index.1 {
+            let new_pos = self.relative_pos(_pos, n as i8, -(n as i8)).unwrap();
+            if self.what_is_on(&new_pos) == None {
+                output.push(new_pos);
+            } else {
+                output.push(new_pos);
+                break;
+            }
+        }
+        //up left
+        for n in 1..index.1 {
+            let new_pos = self.relative_pos(_pos, -(n as i8), -(n as i8)).unwrap();
+            if self.what_is_on(&new_pos) == None {
+                output.push(new_pos);
+            } else {
+                output.push(new_pos);
+                break;
+            }
+        }
+        Some(output)
+    }
+
     /// Get the positions that a knight can move to from its current position
-    pub fn knight_moves(&self, _pos: &String) -> Option<Vec<String>> {
+    fn knight_moves(&self, _pos: &String) -> Option<Vec<String>> {
         let mut output: Vec<String> = Vec::new();
         //all possible moves relative to position
         let _pot_row: [i8; 8] = [1, 1, -1, -1, 2, 2, -2, -2];
@@ -243,7 +363,7 @@ impl Game {
     /// Loop through every unoccupied position in cross from the rooks position
     /// Return every position therein
     /// FIX ASAP
-    pub fn rook_moves(&self, _pos: &String) -> Option<Vec<String>> {
+    fn rook_moves(&self, _pos: &String) -> Option<Vec<String>> {
         let index = self.get_index(_pos);
         let mut output: Vec<String> = Vec::new();
 
@@ -290,57 +410,9 @@ impl Game {
         }
         Some(output)
     }
-    /// Get the positions that a bishop can move to from its current position
-    pub fn bishop_moves(&self, _pos: &String) -> Option<Vec<String>> {
-        let index = self.get_index(_pos);
-        let mut output: Vec<String> = Vec::new();
-        //
-        //Up right
-        for n in 1..(8 - index.0) {
-            let new_pos = self.relative_pos(_pos, -(n as i8), n as i8).unwrap();
-            if self.what_is_on(&new_pos) == None {
-                output.push(new_pos);
-            } else {
-                output.push(new_pos);
-                break;
-            }
-        }
-
-        //down right
-        for n in 1..(8 - index.1) {
-            let new_pos = self.relative_pos(_pos, n as i8, n as i8).unwrap();
-            if self.what_is_on(&new_pos) == None {
-                output.push(new_pos);
-            } else {
-                output.push(new_pos);
-                break;
-            }
-        }
-        //down left
-        for n in 1..index.1 {
-            let new_pos = self.relative_pos(_pos, n as i8, -(n as i8)).unwrap();
-            if self.what_is_on(&new_pos) == None {
-                output.push(new_pos);
-            } else {
-                output.push(new_pos);
-                break;
-            }
-        }
-        //up left
-        for n in 1..index.1 {
-            let new_pos = self.relative_pos(_pos, -(n as i8), -(n as i8)).unwrap();
-            if self.what_is_on(&new_pos) == None {
-                output.push(new_pos);
-            } else {
-                output.push(new_pos);
-                break;
-            }
-        }
-        None
-    }
     /// Get the positions that a peasant can move to from its current position
     /// If the peasant is in a starting position, include 2 square moves
-    pub fn peasant_moves(&self, _pos: &String) -> Option<Vec<String>> {
+    fn peasant_moves(&self, _pos: &String) -> Option<Vec<String>> {
         let mut output: Vec<String> = Vec::new();
         match self.what_is_on(_pos).unwrap().1 {
             Colour::White => {
