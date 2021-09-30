@@ -1,4 +1,5 @@
 use std::{collections::HashSet, fmt, process::Output};
+mod tests;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum GameState {
@@ -100,18 +101,37 @@ impl Game {
     /// move a piece and return the resulting state of the game.
     pub fn make_move(&mut self, _from: String, _to: String) -> Option<GameState> {
         //check if inProgress
-        let colour = self.what_is_on(&_from).unwrap().1;
+        use Colour::*;
+        let colour = self.active_colour;
+        let piece = self.what_is_on(&_from).unwrap().0;
         if self.get_game_state() == GameState::InProgress {
             if self.get_possible_moves(&_from).unwrap().contains(&_to) {
                 let _from = self.get_index(&_from);
                 let _to = self.get_index(&_to);
-                //> this is ugly
+                //this is ugly
                 self.board[_from.0 as usize][_from.1 as usize] =
                     self.board[_to.0 as usize][_to.1 as usize];
+                //PROMOTIONS
+                if piece == Piece::Peasant {
+                    //Check if the peasant is on the opposite side of board
+                    //promote the peasants
+                    match colour{
+                        White => {
+                            if _to.0 == 0{
+                                self.promote(self.index_to_string(_to));
+                            }
+                        },
+                        Black => {
+                            if _to.0 == 7{
+                                self.promote(self.index_to_string(_to));
+                            }
+                        }
+                    }
+                }
             }
         }
         let king_pos = self.find_king(colour);
-        self.king_in_danger(king_pos, colour);
+        self.king_in_danger(&king_pos, colour);
         //check if Gamestate has changed
         //return GameState
         None
@@ -121,10 +141,10 @@ impl Game {
         let mut king_pos: String = String::new();
         use Piece::*;
         //find the king
-        for row in 1..=8 {
-            for column in 1..=8 {
-                if self.board[row][column].unwrap() == (King, colour) {
-                    king_pos = self.index_to_string((row, column));
+        for rank in 1..=8 {
+            for file in 1..=8 {
+                if self.board[rank][file].unwrap() == (King, colour) {
+                    king_pos = self.index_to_string((rank, file));
                 }
             }
         }
@@ -135,16 +155,16 @@ impl Game {
     ///if king is checked, return that DONE
     ///if king is check mated, return that
     ///if not, return in progress
-    fn king_in_danger(&self, _pos: String, colour:Colour) -> Option<GameState> {
+    fn king_in_danger(&self, _pos: &String, colour:Colour) -> Option<GameState> {
         use GameState::*;
         let mut output: Option<GameState>= Some(InProgress);
         let king_moves: Vec<String> =self.king_moves(&_pos).unwrap();
         let mut hs: HashSet<String> = HashSet::new();
-        for row in 1..=8{
-            for column in 1..=8{
+        for rank in 1..=8{
+            for file in 1..=8{
                 //if other colour choose piece
-                let piece = self.what_is_on(&self.index_to_string((row,column))).unwrap();
-                let piece_pos = self.index_to_string((row,column));
+                let piece = self.what_is_on(&self.index_to_string((rank,file))).unwrap();
+                let piece_pos = self.index_to_string((rank,file));
                 let mut pos_moves: Vec<String> = self.get_possible_moves(&piece_pos).unwrap();
                 //add all dangerous or occupied position into a hashset
                 if piece.1 != colour {
@@ -165,7 +185,7 @@ impl Game {
             }
         }
         //compare hashset to the moves the king can make and its current positions. If it includes all these positions
-        if  king_moves.iter().all(|king_move| hs.contains(king_move)) && hs.contains(&_pos){
+        if  king_moves.iter().all(|king_move| hs.contains(king_move)) && hs.contains(_pos){
             output = Some(GameOver);
         }
 
@@ -179,9 +199,9 @@ impl Game {
     }
     fn get_index(&self, _tile: &String) -> (usize, usize) {
         //split string and turn into seperate variables
-        let row: char = _tile[..1].parse().ok().unwrap();
-        let column: usize = _tile[1..].parse().ok().unwrap();
-        let row: usize = match row {
+        let rank: char = _tile[..1].parse().ok().unwrap();
+        let file: usize = _tile[1..].parse().ok().unwrap();
+        let rank: usize = match rank {
             'a' => 0,
             'b' => 1,
             'c' => 2,
@@ -193,7 +213,7 @@ impl Game {
             //if it is outside of the scope it's always mapped to 0 CHANGE ASAP
             _ => 0,
         };
-        (row, column)
+        (rank, file)
     }
 
     /// Set the piece type that a peasant becames following a promotion.
@@ -211,9 +231,9 @@ impl Game {
         };
         ()
     }
-    fn promote(&mut self, _pos: String, colour: Colour){
+    fn promote(&mut self, _pos: String){
         let index = self.get_index(&_pos);
-        self.board[index.0][index.1] = Some((self.promotion, colour));
+        self.board[index.0][index.1] = Some((self.promotion, self.active_colour));
         
     }
 
@@ -241,11 +261,11 @@ impl Game {
         }
     }
     ///return a position relative to a given one
-     fn relative_pos(&self, _pos: &String, _row: i8, _column: i8) -> Option<String> {
+     fn relative_pos(&self, _pos: &String, _rank: i8, _file: i8) -> Option<String> {
         let _pos = self.get_index(&_pos);
         let output: (usize, usize) = (
-            (_pos.0 as i8 + _row) as usize,
-            (_pos.1 as i8 + _column) as usize,
+            (_pos.0 as i8 + _rank) as usize,
+            (_pos.1 as i8 + _file) as usize,
         );
         Some(self.index_to_string(output))
     }
@@ -269,20 +289,20 @@ impl Game {
     }
     /// Get the positions that the king can move to from its current position
     fn king_moves(&self, _pos: &String) -> Option<Vec<String>> {
-        //Get every position surrounding the piece
-        let index = self.get_index(_pos);
-        //WITH CAPACITY?
+        //Get every position in an 3x3 grid centered on the position
+        //Remove occupied positions and the starting position
+        //check if the new position puts the king in check
+        //convert to Vec with String
         let mut output: Vec<String> = Vec::with_capacity(8);
+        let colour: Colour = self.what_is_on(&_pos).unwrap().1;
         for r in -1..=1 {
             for c in -1..=1 {
                 let possible_pos = self.relative_pos(_pos, r, c).unwrap();
-                if _pos != &possible_pos {
+                if _pos != &possible_pos && self.what_is_on(&possible_pos) == None && self.king_in_danger(&possible_pos, colour).unwrap() == GameState::InProgress{
                     output.push(possible_pos);
                 }
             }
         }
-        //Get if positions are illegal ie, piece there, unavailable space
-        //convert to Vec with String
         Some(output)
     }
 
@@ -346,11 +366,11 @@ impl Game {
     fn knight_moves(&self, _pos: &String) -> Option<Vec<String>> {
         let mut output: Vec<String> = Vec::new();
         //all possible moves relative to position
-        let _pot_row: [i8; 8] = [1, 1, -1, -1, 2, 2, -2, -2];
+        let _pot_rank: [i8; 8] = [1, 1, -1, -1, 2, 2, -2, -2];
         let _pot_col: [i8; 8] = [2, -2, 2, -2, 1, -1, 1, -1];
         for n in 0..8 {
             //find position after move
-            let pot_pos = self.relative_pos(_pos, _pot_row[n], _pot_col[n]).unwrap();
+            let pot_pos = self.relative_pos(_pos, _pot_rank[n], _pot_col[n]).unwrap();
             //save position if tile is empty or
             if self.what_is_on(&pot_pos) == None
                 || self.what_is_on(&pot_pos).unwrap().1 != self.what_is_on(&_pos).unwrap().1
@@ -414,7 +434,7 @@ impl Game {
     /// If the peasant is in a starting position, include 2 square moves
     fn peasant_moves(&self, _pos: &String) -> Option<Vec<String>> {
         let mut output: Vec<String> = Vec::new();
-        match self.what_is_on(_pos).unwrap().1 {
+        match self.active_colour {
             Colour::White => {
                 //basic movement
                 let new_pos = self.relative_pos(_pos, -1, 0).unwrap();
@@ -437,6 +457,7 @@ impl Game {
                 if self.get_index(_pos).0 == 7 && self.what_is_on(&pot_pos) == None {
                     output.push(pot_pos);
                 }
+                //PROMOTIONS!
             }
 
             Colour::Black => {
@@ -467,6 +488,25 @@ impl Game {
 
         Some(output)
     }
+    fn symbol(&self, input: (Piece, Colour)) -> String {
+        use Piece::*;
+        use Colour::*;
+        match input{
+            (King, White) => format!("{}", "♚"),
+            (King, Black) => format!("{}", "♔"),
+            (Queen, White) => format!("{}", "♛"),
+            (Queen, Black) => format!("{}", "♕"),
+            (Bishop, White) => format!("{}", "♝"),
+            (Bishop, Black) => format!("{}", "♗"),
+            (Knight, White) => format!("{}", "♞"),
+            (Knight, Black) => format!("{}", "♘"),
+            (Rook, White) => format!("{}", "♜"),
+            (Rook, Black) => format!("{}", "♖"),
+            (Peasant, White) => format!("{}", "♟"),
+            (Peasant, Black) => format!("{}", "♙"),
+            _ => format!("{}", "*")
+        }
+    }
 
     //
 }
@@ -487,33 +527,26 @@ impl Game {
 impl fmt::Debug for Game {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         /* build board representation string */
-        write!(f, "")
-    }
-}
-
-// --------------------------
-// ######### TESTS ##########
-// --------------------------
-
-#[cfg(test)]
-mod tests {
-    use super::Game;
-    use super::GameState;
-
-    // check test framework
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-
-    // example test
-    // check that game state is in progress after initialisation
-    #[test]
-    fn game_in_progress_after_init() {
-        let game = Game::new();
-
-        println!("{:?}", game);
-
-        assert_eq!(game.get_game_state(), GameState::InProgress);
+        let mut output: String = String::new();
+        let board = self.board;
+/*          output.push_str("|:----------------------:|");
+         output.push_str(" A B C D E F G H \n");
+        for rank in 0..7 {
+            for file in 0..7{
+                output.push_str("|");
+                if file == 7{
+                    output.push_str(&rank.to_string());
+                    output.push_str("\n");
+                }
+                print!("{}", &self.symbol(board[2][2].unwrap()));
+                //output  += &self.symbol(board[2][2].unwrap());
+                if rank == 7 {
+                    output.push_str("")
+                }
+            }
+            output.push_str("|:----------------------:|");
+        }  */
+        
+        write!(f, "\n{}", output)
     }
 }
